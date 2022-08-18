@@ -7,8 +7,8 @@ import 'confetti_controller.dart';
 import 'enums/blast_directionality.dart';
 import 'enums/confetti_controller_state.dart';
 
-class ConfettiWidget extends StatefulWidget {
-  const ConfettiWidget({
+class TextConfettiWidget extends StatefulWidget {
+  const TextConfettiWidget({
     Key? key,
     required this.confettiController,
     this.emissionFrequency = 0.02,
@@ -21,14 +21,14 @@ class ConfettiWidget extends StatefulWidget {
     this.shouldLoop = false,
     this.displayTarget = false,
     this.colors,
-    this.strokeColor = Colors.black,
-    this.strokeWidth = 0,
     this.minimumSize = const Size(20, 10),
     this.maximumSize = const Size(30, 15),
     this.particleDrag = 0.05,
     this.canvas,
     this.child,
-    this.createParticlePath,
+    required this.text,
+    this.textStyle = const TextStyle(fontSize: 10),
+    this.textDirection = TextDirection.ltr,
   })  : assert(
           emissionFrequency >= 0 &&
               emissionFrequency <= 1 &&
@@ -39,7 +39,6 @@ class ConfettiWidget extends StatefulWidget {
         ),
         assert(gravity >= 0 && gravity <= 1,
             '`gravity` needs to be between 0 and 1'),
-        assert(strokeWidth >= 0, '`strokeWidth needs to be bigger than 0'),
         super(key: key);
 
   /// Controls the animation.
@@ -67,12 +66,6 @@ class ConfettiWidget extends StatefulWidget {
   /// The default is set to `PI` (180 degrees).
   /// A value of `PI` will emit to the left of the canvas/screen.
   final double blastDirection;
-
-  /// The [createParticlePath] is optional function that returns custom Path
-  /// needed to generate particles.
-  ///
-  /// The default function returns rectangular path
-  final Path Function(Size size)? createParticlePath;
 
   /// The [gravity] is the speed at which the confetti will fall.
   /// The higher the [gravity] the faster it will fall.
@@ -104,12 +97,6 @@ class ConfettiWidget extends StatefulWidget {
   /// List of Colors to iterate over - if null then random values will be chosen
   final List<Color>? colors;
 
-  /// Stroke width of the confetti (0.0 by default, no stroke)
-  final double strokeWidth;
-
-  /// Stroke color of the confetti (black by default, requires a strokeWidth > 0)
-  final Color strokeColor;
-
   /// An optional parameter to set the minimum size potential size for
   /// the confetti.
   ///
@@ -136,11 +123,20 @@ class ConfettiWidget extends StatefulWidget {
   /// Child widget to display
   final Widget? child;
 
+  /// 보여줄 문자
+  final String text;
+
+  /// 문자의 스타일
+  final TextStyle textStyle;
+
+  /// 문자 방향
+  final TextDirection? textDirection;
+
   @override
   _ConfettiWidgetState createState() => _ConfettiWidgetState();
 }
 
-class _ConfettiWidgetState extends State<ConfettiWidget>
+class _ConfettiWidgetState extends State<TextConfettiWidget>
     with SingleTickerProviderStateMixin {
   final GlobalKey _particleSystemKey = GlobalKey();
 
@@ -171,8 +167,7 @@ class _ConfettiWidgetState extends State<ConfettiWidget>
         colors: widget.colors,
         minimumSize: widget.minimumSize,
         maximumSize: widget.maximumSize,
-        particleDrag: widget.particleDrag,
-        createParticlePath: widget.createParticlePath);
+        particleDrag: widget.particleDrag);
 
     _particleSystem.addListener(_particleSystemListener);
 
@@ -300,12 +295,12 @@ class _ConfettiWidgetState extends State<ConfettiWidget>
     return RepaintBoundary(
       child: CustomPaint(
         key: _particleSystemKey,
-        foregroundPainter: ParticlePainter(
+        foregroundPainter: TextParticlePainter(
           _animController,
-          strokeWidth: widget.strokeWidth,
-          strokeColor: widget.strokeColor,
           particles: _particleSystem.particles,
           paintEmitterTarget: widget.displayTarget,
+          text: widget.text,
+          textStyle: widget.textStyle,
         ),
         child: widget.child,
       ),
@@ -322,42 +317,35 @@ class _ConfettiWidgetState extends State<ConfettiWidget>
   }
 }
 
-class ParticlePainter extends CustomPainter {
-  ParticlePainter(
-    Listenable? repaint, {
-    required this.particles,
-    bool paintEmitterTarget = true,
-    Color emitterTargetColor = Colors.black,
-    Color strokeColor = Colors.black,
-    this.strokeWidth = 0,
-  })  : _paintEmitterTarget = paintEmitterTarget,
+class TextParticlePainter extends CustomPainter {
+  TextParticlePainter(Listenable? repaint,
+      {required this.particles,
+      bool paintEmitterTarget = true,
+      Color emitterTargetColor = Colors.black,
+      required String text,
+      TextStyle textStyle = const TextStyle(fontSize: 10)})
+      : _paintEmitterTarget = paintEmitterTarget,
         _emitterPaint = Paint()
           ..color = emitterTargetColor
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0,
-        _particlePaint = Paint()
-          ..color = Colors.green
-          ..style = PaintingStyle.fill,
-        _particleStrokePaint = Paint()
-          ..color = strokeColor
-          ..strokeWidth = strokeWidth
-          ..style = PaintingStyle.stroke,
+        _text = text,
+        _textStyle = textStyle,
         super(repaint: repaint);
 
   final List<Particle> particles;
 
   final Paint _emitterPaint;
   final bool _paintEmitterTarget;
-  final Paint _particlePaint;
-  final Paint _particleStrokePaint;
-  final double strokeWidth;
+  final String _text;
+  final TextStyle _textStyle;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (_paintEmitterTarget) {
       _paintEmitter(canvas);
     }
-    _paintParticles(canvas);
+    _paintParticles(canvas, size);
   }
 
   // TODO: seperate this
@@ -372,19 +360,23 @@ class ParticlePainter extends CustomPainter {
     canvas.drawPath(path, _emitterPaint);
   }
 
-  void _paintParticles(Canvas canvas) {
+  void _paintParticles(Canvas canvas, Size size) {
     for (final particle in particles) {
       final rotationMatrix4 = Matrix4.identity()
         ..translate(particle.location.dx, particle.location.dy)
-        ..rotateX(particle.angleX)
-        ..rotateY(particle.angleY)
         ..rotateZ(particle.angleZ);
 
-      final finalPath = particle.path.transform(rotationMatrix4.storage);
-      canvas.drawPath(finalPath, _particlePaint..color = particle.color);
-      if (strokeWidth > 0) {
-        canvas.drawPath(finalPath, _particleStrokePaint);
-      }
+      final textSpan = TextSpan(text: _text, style: _textStyle);
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: TextDirection.ltr,
+      );
+
+      canvas.save();
+      canvas.transform(rotationMatrix4.storage);
+      textPainter.layout(minWidth: 0, maxWidth: size.width);
+      textPainter.paint(canvas, Offset.zero);
+      canvas.restore();
     }
   }
 
