@@ -89,7 +89,7 @@ class _MyAppState extends State<MyApp> {
           //CENTER -- Blast
           Align(
             alignment: Alignment.center,
-            child: ConfettiWidget(
+            child: TextConfettiWidget(
               confettiController: _controllerCenter,
               blastDirectionality: BlastDirectionality
                   .explosive, // don't specify a direction, blast randomly
@@ -102,7 +102,8 @@ class _MyAppState extends State<MyApp> {
                 Colors.orange,
                 Colors.purple
               ], // manually specify the colors to be used
-              createParticlePath: drawStar, // define a custom shape/path.
+              text: '🧐',
+              textStyle: TextStyle(fontSize: 100),
             ),
           ),
           Align(
