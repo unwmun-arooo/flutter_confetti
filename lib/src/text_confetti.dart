@@ -300,7 +300,8 @@ class _ConfettiWidgetState extends State<TextConfettiWidget>
           particles: _particleSystem.particles,
           paintEmitterTarget: widget.displayTarget,
           text: widget.text,
-          textStyle: widget.textStyle,
+          textStyle:
+              widget.textStyle.copyWith(backgroundColor: Colors.transparent),
         ),
         child: widget.child,
       ),
